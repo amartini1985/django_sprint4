@@ -19,9 +19,9 @@ urlpatterns = [
         name='category_posts'
     ),
     path('posts/create/', views.BlogCreateView.as_view(), name='create_post'),
-    path('<int:pk>/edit/', views.BlogUpdateView.as_view(), name='edit_post'),
+    path('post/<int:pk>/edit/', views.BlogUpdateView.as_view(), name='edit_post'),
     path(
-        '<int:pk>/delete/',
+        'post/<int:pk>/delete/',
         views.BlogDeleteView.as_view(),
         name='delete_post'),
     path(
@@ -29,7 +29,7 @@ urlpatterns = [
         views.ProfileUpdateView.as_view(),
         name='edit_profile'),
     path('profile/<slug:slug>/', views.ProfileList.as_view(), name='profile'),
-    path('<int:pk>/comment/', views.add_comment, name='add_comment'),
+    path('posts/<int:post_id>/comment/', views.add_comment, name='add_comment'),
     path('posts/<int:post_id>/edit_comment/<int:comment_id>/',
          views.edit_comment,
          name='edit_comment'),
