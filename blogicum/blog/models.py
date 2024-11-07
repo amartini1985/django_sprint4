@@ -110,7 +110,7 @@ class Post(PublishModel):
 
     def get_absolute_url(self):
         # С помощью функции reverse() возвращаем URL объекта.
-        return reverse('blog:profile', kwargs={'slug': self.author})      
+        return reverse('blog:profile', kwargs={'slug': self.author})
 
 
 class Comment(models.Model):
