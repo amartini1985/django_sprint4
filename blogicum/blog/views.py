@@ -6,6 +6,8 @@ from django.contrib.auth.decorators import login_required
 
 from django.utils import timezone
 
+from django.urls import reverse
+
 from django.urls import reverse_lazy
 
 from django.views.generic import (
@@ -59,7 +61,7 @@ class PostDetailView(DetailView):
         context['form'] = CommentForm()
         context['comments'] = Comment.objects.all().filter(
             post=self.kwargs['pk']
-        )
+        ).order_by('created_at')
         return context
 
 class PostsList(ListView):
@@ -69,7 +71,7 @@ class PostsList(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return get_posts().annotate(comment_count=Count('comment')).order_by('-pub_date')
+        return get_posts().annotate(comment_count=Count('comment')).order_by('-pub_date',)
 
 '''
 def index(request):
@@ -121,7 +123,7 @@ class ProfileList(ListView):
         return Post.objects.select_related(
         'category',
         'author',
-        'location').filter(author__username=self.kwargs['slug'])
+        'location').filter(author__username=self.kwargs['slug']).annotate(comment_count=Count('comment')).order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -151,7 +153,6 @@ class BlogCreateView(LoginRequiredMixin, CreateView):
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
-    #success_url = reverse_lazy('blog:index')
 
     def form_valid(self, form):
         form.instance.author = self.request.user
@@ -163,13 +164,23 @@ class BlogUpdateView(LoginRequiredMixin, UpdateView):
     template_name = 'blog/create.html'
     form_class = PostForm
 
+    def get_success_url(self):
+        return reverse('blog:post_detail', kwargs={'pk': self.kwargs['pk']}) 
+
 
 
 class BlogDeleteView(LoginRequiredMixin, DeleteView):
     model = Post
     template_name = 'blog/create.html'
     success_url = reverse_lazy('blog:index')
+    form_class = PostForm
 
+def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        instance = get_object_or_404(Post, post=self.kwargs['pk'])
+        form = PostForm(instance=instance)
+        context['form'] = form
+        return context
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
     model = User
@@ -198,7 +209,7 @@ def edit_comment(request, post_id, comment_id):
     instance = get_object_or_404(Comment, pk=comment_id)
     form = CommentForm(request.POST or None, instance=instance)
     context = {'form': form, 'comment': instance}
-    if form.is_valid():
+    if form.is_valid() and request.user == instance.author:
         form.save()
         return redirect('blog:post_detail', pk=post_id)
     return render(request, 'blog/comment.html', context)
@@ -207,9 +218,10 @@ def edit_comment(request, post_id, comment_id):
 @login_required
 def delete_comment(request, post_id, comment_id):
     instance = get_object_or_404(Comment, pk=comment_id)
-    form = CommentForm(instance=instance)
-    context = {'form': form, 'comment': instance}
-    if request.method == 'POST':
+    #form = CommentForm(instance=instance)
+    context = {'comment': instance}
+    #context = {'form': form, 'comment': instance}
+    if request.method == 'POST' and request.user == instance.author:
         instance.delete()
         return redirect('blog:post_detail', pk=post_id)
     return render(request, 'blog/comment.html', context)
