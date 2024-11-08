@@ -1,5 +1,7 @@
 from django.db.models import Count
 
+from django.db.models.query import QuerySet
+from django.http.response import HttpResponseRedirect
 from django.shortcuts import get_object_or_404, render, redirect
 
 from django.contrib.auth.decorators import login_required
@@ -23,8 +25,6 @@ from django.contrib.auth.mixins import LoginRequiredMixin
 
 from django.contrib.auth.mixins import UserPassesTestMixin
 
-COUNT_POSTS = 5  # Число постов при выводе
-
 
 class OnlyAuthorMixin(UserPassesTestMixin):
 
@@ -43,6 +43,12 @@ def get_posts():
         is_published=True,
         category__is_published=True)
 
+def get_posts_all():
+    """Функция определяющая базовые запросы для view-функций."""
+    return Post.objects.select_related(
+        'category',
+        'author',
+        'location')
 
 class PostDetailView(DetailView):
     model = Post
@@ -55,6 +61,13 @@ class PostDetailView(DetailView):
             post=self.kwargs['pk']
         ).order_by('created_at')
         return context
+
+    def get_queryset(self):
+        post = get_object_or_404(get_posts_all(), pk=self.kwargs['pk'])
+        if (post.author == self.request.user):
+            return get_posts_all().filter(pk=self.kwargs['pk'])
+        else:
+            return get_posts().filter(pk=self.kwargs['pk'])
 
 
 class PostsList(ListView):
@@ -94,11 +107,19 @@ class ProfileList(ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return Post.objects.select_related(
-            'category', 'author', 'location'
-        ).filter(
-            author__username=self.kwargs['slug']).annotate(
-                comment_count=Count('comment')).order_by('-pub_date')
+        if str(self.request.user) == str(self.kwargs['slug']):
+            return Post.objects.select_related(
+                'category', 'author', 'location'
+            ).filter(
+                author__username=self.kwargs['slug']).annotate(
+                    comment_count=Count('comment')).order_by('-pub_date')
+        else:
+            return Post.objects.select_related(
+                'category', 'author', 'location'
+            ).filter(
+                author__username=self.kwargs['slug'],
+                is_published=True).annotate(
+                    comment_count=Count('comment')).order_by('-pub_date')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -127,6 +148,9 @@ class BlogUpdateView(OnlyAuthorMixin, UpdateView):
     def get_success_url(self):
         return reverse('blog:post_detail', kwargs={'pk': self.kwargs['pk']})
 
+    def handle_no_permission(self):
+        return redirect('blog:post_detail', pk=self.kwargs['pk'])
+
 
 class BlogDeleteView(OnlyAuthorMixin, DeleteView):
     model = Post
@@ -143,6 +167,9 @@ class BlogDeleteView(OnlyAuthorMixin, DeleteView):
     def get_success_url(self):
         return reverse('blog:profile', kwargs={'slug': self.request.user})
 
+    def handle_no_permission(self):
+        return redirect('blog:post_detail', pk=self.kwargs['pk'])
+
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
     model = User
@@ -152,6 +179,9 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
     def get_object(self):
         return self.request.user
+
+    def get_success_url(self):
+        return reverse('blog:profile', kwargs={'slug': self.request.user})
 
 
 @login_required

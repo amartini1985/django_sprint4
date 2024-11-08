@@ -19,11 +19,11 @@ urlpatterns = [
     path('posts/create/',
          views.BlogCreateView.as_view(),
          name='create_post'),
-    path('post/<int:pk>/edit/',
+    path('posts/<int:pk>/edit/',
          views.BlogUpdateView.as_view(),
          name='edit_post'),
     path(
-        'post/<int:pk>/delete/',
+        'posts/<int:pk>/delete/',
         views.BlogDeleteView.as_view(),
         name='delete_post'),
     path(
