@@ -1,5 +1,8 @@
+"""Urls.py для приложения blog."""
 from django.conf import settings
+
 from django.conf.urls.static import static
+
 from django.urls import path
 
 from . import views
@@ -17,14 +20,14 @@ urlpatterns = [
         views.CategoryList.as_view(),
         name='category_posts'),
     path('posts/create/',
-         views.BlogCreateView.as_view(),
+         views.PostCreateView.as_view(),
          name='create_post'),
     path('posts/<int:pk>/edit/',
-         views.BlogUpdateView.as_view(),
+         views.PostUpdateView.as_view(),
          name='edit_post'),
     path(
         'posts/<int:pk>/delete/',
-        views.BlogDeleteView.as_view(),
+        views.PostDeleteView.as_view(),
         name='delete_post'),
     path(
         'profile/edit/',

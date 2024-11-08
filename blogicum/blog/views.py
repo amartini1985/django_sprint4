@@ -1,32 +1,28 @@
-from django.db.models import Count
-
-from django.db.models.query import QuerySet
-from django.http.response import HttpResponseRedirect
-from django.shortcuts import get_object_or_404, render, redirect
+"""Views.py для приложения blog."""
 
 from django.contrib.auth.decorators import login_required
 
+from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+
+from django.db.models import Count
+
+from django.shortcuts import get_object_or_404, render, redirect
+
+from django.urls import reverse, reverse_lazy
+
 from django.utils import timezone
 
-from django.urls import reverse
+from django.views.generic import CreateView, DeleteView, DetailView
 
-from django.urls import reverse_lazy
-
-from django.views.generic import (
-    CreateView, DeleteView, UpdateView,
-    DetailView, ListView
-)
+from django.views.generic import ListView, UpdateView
 
 from .forms import PostForm, UserForm, CommentForm
 
-from blog.models import Category, Post, User, Comment
-
-from django.contrib.auth.mixins import LoginRequiredMixin
-
-from django.contrib.auth.mixins import UserPassesTestMixin
+from .models import Category, Post, User, Comment
 
 
 class OnlyAuthorMixin(UserPassesTestMixin):
+    """Миксин для проверки авторства."""
 
     def test_func(self):
         object = self.get_object()
@@ -34,7 +30,7 @@ class OnlyAuthorMixin(UserPassesTestMixin):
 
 
 def get_posts():
-    """Функция определяющая базовые запросы для view-функций."""
+    """Функция определяющая базовый запрос для всех пользователей."""
     return Post.objects.select_related(
         'category',
         'author',
@@ -43,14 +39,18 @@ def get_posts():
         is_published=True,
         category__is_published=True)
 
+
 def get_posts_all():
-    """Функция определяющая базовые запросы для view-функций."""
+    """Функция определяющая базовый запросы авторов."""
     return Post.objects.select_related(
         'category',
         'author',
         'location')
 
+
 class PostDetailView(DetailView):
+    """CBV вывода отдельных постов."""
+
     model = Post
     template_name = 'blog/detail.html'
 
@@ -62,15 +62,18 @@ class PostDetailView(DetailView):
         ).order_by('created_at')
         return context
 
+# Не уверен что это оптимальный вариант, но по другому не придумал
     def get_queryset(self):
         post = get_object_or_404(get_posts_all(), pk=self.kwargs['pk'])
-        if (post.author == self.request.user):
+        if post.author == self.request.user:
             return get_posts_all().filter(pk=self.kwargs['pk'])
         else:
             return get_posts().filter(pk=self.kwargs['pk'])
 
 
 class PostsList(ListView):
+    """CBV вывода постов на главную страницу."""
+
     model = Post
     context_object_name = 'post_obj'
     template_name = 'blog/index.html'
@@ -82,6 +85,8 @@ class PostsList(ListView):
 
 
 class CategoryList(ListView):
+    """CBV вывода постов в категории."""
+
     model = Post
     context_object_name = 'post_obj'
     template_name = 'blog/category.html'
@@ -101,22 +106,21 @@ class CategoryList(ListView):
 
 
 class ProfileList(ListView):
+    """CBV вывода постов на странице профиле пользователя."""
+
     model = Post
     context_object_name = 'post_obj'
     template_name = 'blog/profile.html'
     paginate_by = 10
 
+# Не уверен что это оптимальный вариант, но по другому не придумал
     def get_queryset(self):
-        if str(self.request.user) == str(self.kwargs['slug']):
-            return Post.objects.select_related(
-                'category', 'author', 'location'
-            ).filter(
+        if str(self.request.user) == self.kwargs['slug']:
+            return get_posts_all().filter(
                 author__username=self.kwargs['slug']).annotate(
                     comment_count=Count('comment')).order_by('-pub_date')
         else:
-            return Post.objects.select_related(
-                'category', 'author', 'location'
-            ).filter(
+            return get_posts_all().filter(
                 author__username=self.kwargs['slug'],
                 is_published=True).annotate(
                     comment_count=Count('comment')).order_by('-pub_date')
@@ -130,7 +134,9 @@ class ProfileList(ListView):
         return context
 
 
-class BlogCreateView(LoginRequiredMixin, CreateView):
+class PostCreateView(LoginRequiredMixin, CreateView):
+    """CBV создания поста."""
+
     model = Post
     form_class = PostForm
     template_name = 'blog/create.html'
@@ -140,7 +146,9 @@ class BlogCreateView(LoginRequiredMixin, CreateView):
         return super().form_valid(form)
 
 
-class BlogUpdateView(OnlyAuthorMixin, UpdateView):
+class PostUpdateView(OnlyAuthorMixin, UpdateView):
+    """CBV редактирования поста."""
+
     model = Post
     template_name = 'blog/create.html'
     form_class = PostForm
@@ -152,7 +160,9 @@ class BlogUpdateView(OnlyAuthorMixin, UpdateView):
         return redirect('blog:post_detail', pk=self.kwargs['pk'])
 
 
-class BlogDeleteView(OnlyAuthorMixin, DeleteView):
+class PostDeleteView(OnlyAuthorMixin, DeleteView):
+    """CBV удаления поста."""
+
     model = Post
     template_name = 'blog/create.html'
     form_class = PostForm
@@ -172,6 +182,8 @@ class BlogDeleteView(OnlyAuthorMixin, DeleteView):
 
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
+    """CBV редактирования профиля."""
+
     model = User
     template_name = 'blog/user.html'
     form_class = UserForm
@@ -186,6 +198,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
 
 @login_required
 def add_comment(request, post_id):
+    """Функция для добавления комментариев."""
     post = get_object_or_404(Post, pk=post_id)
     form = CommentForm(request.POST)
     if form.is_valid():
@@ -198,6 +211,7 @@ def add_comment(request, post_id):
 
 @login_required
 def edit_comment(request, post_id, comment_id):
+    """Функция для редактирования комментариев."""
     instance = get_object_or_404(Comment, pk=comment_id)
     form = CommentForm(request.POST or None, instance=instance)
     context = {'form': form, 'comment': instance}
@@ -209,6 +223,7 @@ def edit_comment(request, post_id, comment_id):
 
 @login_required
 def delete_comment(request, post_id, comment_id):
+    """Функция для удаления комментариев."""
     instance = get_object_or_404(Comment, pk=comment_id)
     context = {'comment': instance}
     if request.method == 'POST' and request.user == instance.author:
