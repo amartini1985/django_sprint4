@@ -1,8 +1,6 @@
 from django.contrib.auth import get_user_model
-
-from django.urls import reverse
-
 from django.db import models
+from django.urls import reverse
 
 MAX_LENGTH_TITLE = 256  # Максимальная длина полей
 LIMIT_TEXT = 15  # Максимальная длина текста для __str__
@@ -117,7 +115,7 @@ class Comment(models.Model):
     post = models.ForeignKey(
         Post,
         on_delete=models.CASCADE,
-        related_name='comment'
+
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -133,3 +131,7 @@ class Comment(models.Model):
         verbose_name = 'комментарий'
         verbose_name_plural = 'Комментарии'
         ordering = ('-created_at',)
+        default_related_name = 'comments'
+
+    def __str__(self):
+        return self.text[:LIMIT_TEXT]
