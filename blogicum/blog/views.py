@@ -9,8 +9,8 @@ from django.views.generic import ListView, UpdateView
 
 from .forms import CommentForm, PostForm, UserForm
 from .mixins import OnlyAuthorMixin
-from .models import Comment, Post, User
-from .query_utils import get_category_post, get_posts, get_user
+from .models import Category, Comment, Post, User
+from .query_utils import get_posts
 
 
 class PostDetailView(DetailView):
@@ -61,13 +61,24 @@ class CategoryList(ListView):
     template_name = 'blog/category.html'
     paginate_by = settings.NUMBER_OF_POSTS
 
+    def get_category(self):
+        return get_object_or_404(
+            Category,
+            slug=self.kwargs['category_slug'],
+            is_published=True
+    )
+
     def get_queryset(self):
-        category = get_category_post(self.kwargs['category_slug'])
-        return get_posts(manager=category.posts, filter_flag=True)
+        category = self.get_category()
+        return get_posts(
+            manager=category.posts,
+            filter_flag=True,
+            annotate_flag=True
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = get_category_post(self.kwargs['category_slug'])
+        context['category'] = self.get_category()
         return context
 
 
@@ -79,8 +90,14 @@ class ProfileList(ListView):
     template_name = 'blog/profile.html'
     paginate_by = settings.NUMBER_OF_POSTS
 
+    def get_user(self):
+        return get_object_or_404(
+            User,
+            username=self.kwargs['username']
+        )
+
     def get_queryset(self):
-        profile = get_user(self.kwargs['username'])
+        profile = self.get_user()
         return get_posts(
             manager=profile.posts,
             filter_flag=not self.request.user == profile,
@@ -89,7 +106,7 @@ class ProfileList(ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['profile'] = get_user(self.kwargs['username'])
+        context['profile'] = self.get_user()
         return context
 
 
