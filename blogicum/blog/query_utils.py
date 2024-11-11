@@ -35,4 +35,4 @@ def get_user(username):
     return get_object_or_404(
         User,
         username=username
-        )
+    )

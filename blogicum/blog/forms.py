@@ -14,7 +14,7 @@ class PostForm(forms.ModelForm):
                     'type': 'datetime-local'
                 },
                 format='%d %M %Y %H:%M:%S'
-                    ),
+            ),
         }
 
 
