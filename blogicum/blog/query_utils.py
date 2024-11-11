@@ -13,6 +13,7 @@ def get_category_post(slug):
         is_published=True
     )
 
+
 def get_posts(manager=Post.objects, filter_flag=False, annotate_flag=False):
     """Функция определяющая базовый запрос для всех пользователей."""
     queryset = manager.select_related(
@@ -29,8 +30,9 @@ def get_posts(manager=Post.objects, filter_flag=False, annotate_flag=False):
             comment_count=Count('comments')).order_by('-pub_date',)
     return queryset
 
+
 def get_user(username):
     return get_object_or_404(
         User,
         username=username
-        )    
+        )

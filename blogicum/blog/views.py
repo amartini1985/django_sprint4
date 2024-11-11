@@ -9,7 +9,7 @@ from django.views.generic import ListView, UpdateView
 
 from .forms import CommentForm, PostForm, UserForm
 from .mixins import OnlyAuthorMixin
-from .models import Category, Comment, Post, User
+from .models import Comment, Post, User
 from .query_utils import get_category_post, get_posts, get_user
 
 
@@ -79,7 +79,6 @@ class ProfileList(ListView):
     template_name = 'blog/profile.html'
     paginate_by = settings.NUMBER_OF_POSTS
 
-# Не уверен что это оптимальный вариант, но по другому не придумал
     def get_queryset(self):
         profile = get_user(self.kwargs['username'])
         return get_posts(
@@ -88,10 +87,9 @@ class ProfileList(ListView):
             annotate_flag=True
         )
 
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['profile'] = get_user(self.kwargs['username']) # Изменения
+        context['profile'] = get_user(self.kwargs['username'])
         return context
 
 
@@ -158,6 +156,7 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
             kwargs={'username': self.request.user.username}
         )
 
+
 @login_required
 def add_comment(request, post_id):
     """Функция для добавления комментариев."""
@@ -191,7 +190,7 @@ def delete_comment(request, post_id, comment_id):
     instance = get_object_or_404(Comment, pk=comment_id)
     context = {'comment': instance}
     if request.user != instance.author:
-        return redirect('blog:post_detail', post_id=post_id)        
+        return redirect('blog:post_detail', post_id=post_id)
     if request.method == 'POST' and request.user == instance.author:
         instance.delete()
         return redirect('blog:post_detail', post_id=post_id)
