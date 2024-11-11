@@ -37,7 +37,7 @@ profile_urls = [
         'edit/',
         views.ProfileUpdateView.as_view(),
         name='edit_profile'),
-    path('<slug:slug>/',
+    path('<str:username>/',
          views.ProfileList.as_view(),
          name='profile'),
 ]

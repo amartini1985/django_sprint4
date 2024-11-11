@@ -1,27 +1,16 @@
 """Views.py для приложения blog."""
+from django.conf import settings
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
+from django.contrib.auth.mixins import LoginRequiredMixin
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse, reverse_lazy
 from django.views.generic import CreateView, DeleteView, DetailView
 from django.views.generic import ListView, UpdateView
 
-from blogicum.settings import NUMBER_OF_POSTS
-
 from .forms import CommentForm, PostForm, UserForm
+from .mixins import OnlyAuthorMixin
 from .models import Category, Comment, Post, User
-from .utils import get_posts
-
-
-class OnlyAuthorMixin(UserPassesTestMixin):
-    """Миксин для проверки авторства."""
-
-    def test_func(self):
-        object = self.get_object()
-        return object.author == self.request.user
-
-    def handle_no_permission(self):
-        return redirect('blog:post_detail', post_id=self.kwargs['post_id'])
+from .query_utils import get_category_post, get_posts, get_user
 
 
 class PostDetailView(DetailView):
@@ -36,12 +25,7 @@ class PostDetailView(DetailView):
             get_posts(),
             pk=self.kwargs[self.pk_url_kwarg]
         )
-        if post.author == self.request.user:
-            post = get_object_or_404(
-                get_posts(),
-                pk=self.kwargs[self.pk_url_kwarg]
-            )
-        else:
+        if post.author != self.request.user:
             post = get_object_or_404(
                 get_posts(filter_flag=True),
                 pk=self.kwargs[self.pk_url_kwarg]
@@ -52,7 +36,7 @@ class PostDetailView(DetailView):
         context = super().get_context_data(**kwargs)
         context['form'] = CommentForm()
         context['comments'] = Comment.objects.all().filter(
-            post=self.kwargs['post_id']
+            post=self.get_object()
         ).order_by('created_at')
         return context
 
@@ -63,7 +47,7 @@ class PostsList(ListView):
     model = Post
     context_object_name = 'post_obj'
     template_name = 'blog/index.html'
-    paginate_by = NUMBER_OF_POSTS
+    paginate_by = settings.NUMBER_OF_POSTS
 
     def get_queryset(self):
         return get_posts(filter_flag=True, annotate_flag=True)
@@ -75,25 +59,15 @@ class CategoryList(ListView):
     model = Post
     context_object_name = 'post_obj'
     template_name = 'blog/category.html'
-    paginate_by = NUMBER_OF_POSTS
+    paginate_by = settings.NUMBER_OF_POSTS
 
     def get_queryset(self):
-        category = get_object_or_404(
-            Category,
-            slug=self.kwargs['category_slug'],
-            is_published=True
-        )
-        return get_posts(filter_flag=True).filter(
-            category__slug=category.slug
-        )
+        category = get_category_post(self.kwargs['category_slug'])
+        return get_posts(manager=category.posts, filter_flag=True)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['category'] = get_object_or_404(
-            Category,
-            slug=self.kwargs['category_slug'],
-            is_published=True
-        )
+        context['category'] = get_category_post(self.kwargs['category_slug'])
         return context
 
 
@@ -103,28 +77,21 @@ class ProfileList(ListView):
     model = Post
     context_object_name = 'post_obj'
     template_name = 'blog/profile.html'
-    paginate_by = NUMBER_OF_POSTS
+    paginate_by = settings.NUMBER_OF_POSTS
 
 # Не уверен что это оптимальный вариант, но по другому не придумал
     def get_queryset(self):
-        profile = get_object_or_404(
-            User,
-            username=self.kwargs['slug']
+        profile = get_user(self.kwargs['username'])
+        return get_posts(
+            manager=profile.posts,
+            filter_flag=not self.request.user == profile,
+            annotate_flag=True
         )
-        if str(self.request.user) == self.kwargs['slug']:
-            return get_posts(annotate_flag=True).filter(
-                author__username=profile.username)
-        else:
-            return get_posts(annotate_flag=True).filter(
-                author__username=profile.username,
-                is_published=True)
+
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['profile'] = get_object_or_404(
-            User,
-            username=self.kwargs['slug']
-        )
+        context['profile'] = get_user(self.kwargs['username']) # Изменения
         return context
 
 
@@ -171,7 +138,7 @@ class PostDeleteView(OnlyAuthorMixin, DeleteView):
         return context
 
     def get_success_url(self):
-        return reverse('blog:profile', kwargs={'slug': self.request.user})
+        return reverse('blog:profile', kwargs={'username': self.request.user})
 
 
 class ProfileUpdateView(LoginRequiredMixin, UpdateView):
@@ -186,8 +153,10 @@ class ProfileUpdateView(LoginRequiredMixin, UpdateView):
         return self.request.user
 
     def get_success_url(self):
-        return reverse('blog:profile', kwargs={'slug': self.request.user})
-
+        return reverse(
+            'blog:profile',
+            kwargs={'username': self.request.user.username}
+        )
 
 @login_required
 def add_comment(request, post_id):
@@ -221,9 +190,9 @@ def delete_comment(request, post_id, comment_id):
     """Функция для удаления комментариев."""
     instance = get_object_or_404(Comment, pk=comment_id)
     context = {'comment': instance}
+    if request.user != instance.author:
+        return redirect('blog:post_detail', post_id=post_id)        
     if request.method == 'POST' and request.user == instance.author:
         instance.delete()
-        return redirect('blog:post_detail', post_id=post_id)
-    elif request.user != instance.author:
         return redirect('blog:post_detail', post_id=post_id)
     return render(request, 'blog/comment.html', context)
