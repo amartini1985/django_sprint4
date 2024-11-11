@@ -66,7 +66,7 @@ class CategoryList(ListView):
             Category,
             slug=self.kwargs['category_slug'],
             is_published=True
-    )
+        )
 
     def get_queryset(self):
         category = self.get_category()
